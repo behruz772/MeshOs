@@ -7,3 +7,5 @@ build/*.iso
 kernel/
 
 kernel/
+
+release/
