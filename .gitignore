@@ -9,3 +9,7 @@ kernel/
 kernel/
 
 release/
+
+# Generated release artifacts
+build/iso/
+build/*OVMF_VARS*.fd
