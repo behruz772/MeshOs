@@ -29,6 +29,23 @@ echo
 
 hostname meshos
 
+meshos_sync() {
+    echo "[MeshOS] Syncing persistent storage..."
+    sync
+}
+
+meshos_poweroff() {
+    meshos_sync
+    echo "[MeshOS] Powering off..."
+    poweroff
+}
+
+meshos_reboot() {
+    meshos_sync
+    echo "[MeshOS] Rebooting..."
+    reboot
+}
+
 echo "[MeshOS] Initializing network..."
 
 ip link set lo up 2>/dev/null || true
@@ -43,6 +60,11 @@ if ip link show eth0 >/dev/null 2>&1; then
         >/tmp/udhcpc.log 2>&1 || true
 else
     echo "[MeshOS] No eth0 interface available."
+fi
+
+if /bin/busybox grep -qw "meshos.shell=1" /proc/cmdline 2>/dev/null; then
+    echo "[MeshOS] Interactive shell enabled."
+    exec /bin/sh
 fi
 
 if [ -x /bin/meshos-daemon ]; then

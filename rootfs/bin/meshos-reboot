@@ -1,0 +1,4 @@
+#!/bin/sh
+sync
+echo "[MeshOS] Rebooting..."
+reboot
