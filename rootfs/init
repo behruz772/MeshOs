@@ -1,0 +1,42 @@
+#!/bin/sh
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+
+echo
+echo "================================"
+echo "        MeshOS"
+echo "================================"
+echo "Kernel: $(uname -r)"
+echo "Userspace: MeshOS"
+echo
+
+hostname meshos
+
+echo "[MeshOS] Initializing network..."
+
+ip link set lo up 2>/dev/null || true
+
+if ip link show eth0 >/dev/null 2>&1; then
+    ip link set eth0 up 2>/dev/null || true
+
+    echo "[MeshOS] Requesting DHCP lease..."
+
+    udhcpc -i eth0 -q -n \
+        -s /bin/udhcpc.script \
+        >/tmp/udhcpc.log 2>&1 || true
+else
+    echo "[MeshOS] No eth0 interface available."
+fi
+
+if [ -x /bin/meshos-daemon ]; then
+    echo "[MeshOS] Starting daemon..."
+    /bin/meshos-daemon &
+fi
+
+echo "[MeshOS] System ready."
+
+while true; do
+    sleep 60
+done

@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "mesh-core",
+    "daemon",
+    "cli"
+, "workspace"]
+resolver = "3"

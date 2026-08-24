@@ -1,0 +1,9 @@
+target/
+workspace-data/
+build/*.cpio.gz
+build/*.img
+build/*.iso
+
+kernel/
+
+kernel/
