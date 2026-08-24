@@ -11,6 +11,16 @@ pub enum ApplyResult {
     AlreadyIdentical,
 }
 
+fn durable_write(path: &Path, data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::Write;
+
+    let mut file = std::fs::File::create(path)?;
+    file.write_all(data)?;
+    file.sync_all()?;
+
+    Ok(())
+}
+
 pub fn apply_remote(
     root: impl AsRef<Path>,
     local: Option<&FileVersion>,
@@ -31,7 +41,7 @@ pub fn apply_remote(
                     fs::create_dir_all(parent)?;
                 }
 
-                fs::write(&destination, remote_bytes)?;
+                durable_write(&destination, remote_bytes)?;
                 return Ok(ApplyResult::AppliedRemote);
             }
 
@@ -47,7 +57,7 @@ pub fn apply_remote(
                     fs::create_dir_all(parent)?;
                 }
 
-                fs::write(&conflict, remote_bytes)?;
+                durable_write(&conflict, remote_bytes)?;
 
                 return Ok(ApplyResult::ConflictCreated(conflict));
             }
@@ -58,7 +68,7 @@ pub fn apply_remote(
         fs::create_dir_all(parent)?;
     }
 
-    fs::write(&destination, remote_bytes)?;
+    durable_write(&destination, remote_bytes)?;
 
     Ok(ApplyResult::AppliedRemote)
 }

@@ -114,7 +114,7 @@ async fn receive_file(
 
     let relative = safe_relative_path(&meta.path)?;
 
-    let root = PathBuf::from("/root/.meshos-transfer");
+    let root = PathBuf::from("/var/lib/meshos/transfer");
     fs::create_dir_all(&root).await?;
 
     let destination = root.join(&relative);
@@ -299,7 +299,7 @@ async fn handle_connection(
 
             let relative = safe_relative_path(&delete.path)?;
 
-            let root = PathBuf::from("/root/.meshos-transfer");
+            let root = PathBuf::from("/var/lib/meshos/transfer");
 
             let destination = root.join(relative);
 
@@ -341,7 +341,7 @@ async fn handle_connection(
 
             let meta: FileStart = serde_json::from_slice(&first_plain[5..])?;
 
-            let root = PathBuf::from("/root/.meshos-transfer");
+            let root = PathBuf::from("/var/lib/meshos/transfer");
             fs::create_dir_all(&root).await?;
 
             let relative = safe_relative_path(&meta.path)?;

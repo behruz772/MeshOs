@@ -4,6 +4,21 @@ mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 
+echo "[MeshOS] Initializing persistent storage..."
+
+mkdir -p /var/lib/meshos/transfer
+
+if [ -b /dev/vda ]; then
+    if mount -t ext4 /dev/vda /var/lib/meshos 2>/tmp/meshos-storage-error.log; then
+        echo "[MeshOS] Persistent storage mounted: /dev/vda"
+    else
+        echo "[MeshOS] Persistent storage unavailable; using volatile storage."
+        cat /tmp/meshos-storage-error.log 2>/dev/null || true
+    fi
+else
+    echo "[MeshOS] Persistent disk not available; using volatile storage."
+fi
+
 echo
 echo "================================"
 echo "        MeshOS"
