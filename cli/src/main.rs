@@ -15,6 +15,7 @@ use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use workspace::{
+    conflict::FileVersion,
     protocol::{SyncAction, SyncRecord},
     queue::{PendingRecord, SyncQueue},
     state::StateStore,
@@ -22,6 +23,14 @@ use workspace::{
 
 const MAX_FRAME: usize = 64 * 1024;
 const CHUNK_SIZE: usize = 32 * 1024;
+
+fn meshos_data_root() -> PathBuf {
+    if let Ok(path) = std::env::var("MESHOS_DATA_DIR") {
+        return PathBuf::from(path);
+    }
+
+    PathBuf::from("/var/lib/meshos")
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct FileStart {
@@ -112,7 +121,11 @@ async fn send_file(
         .collect::<String>();
 
     let identity = DeviceIdentity::load_or_create("Behruz-Phone")?;
-    let state_store = StateStore::new(root)?;
+
+    let data_root = meshos_data_root();
+    std::fs::create_dir_all(&data_root)?;
+
+    let state_store = StateStore::new(&data_root)?;
     let version = state_store.next_version()?;
 
     let metadata = FileStart {
@@ -158,6 +171,16 @@ async fn send_file(
     if ack != b"FILE_OK" {
         return Err("receiver rejected file".into());
     }
+
+    let version_record = FileVersion {
+        path: relative.clone(),
+        version,
+        sha256: sha256.clone(),
+        device_id: metadata.device_id.clone(),
+        event_id: metadata.event_id.clone(),
+    };
+
+    state_store.upsert(state_store.load()?, version_record)?;
 
     println!("[MeshOS] Synced: {} ({} bytes)", relative, data.len());
 
@@ -320,7 +343,10 @@ async fn process_queue(
 async fn sync_workspace(address: &str, root: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(&root)?;
 
-    let queue = SyncQueue::new(&root)?;
+    let data_root = meshos_data_root();
+    std::fs::create_dir_all(&data_root)?;
+
+    let queue = SyncQueue::new(&data_root)?;
 
     let (tx, rx) = channel();
 

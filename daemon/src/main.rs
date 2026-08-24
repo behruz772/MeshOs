@@ -24,8 +24,12 @@ struct TrustedDevice {
 }
 
 fn trusted_devices_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"))?;
-    Ok(PathBuf::from(home).join(".meshos_trusted_devices.json"))
+    let root = std::env::var("MESHOS_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("/var/lib/meshos"));
+
+    fs::create_dir_all(&root)?;
+    Ok(root.join(".meshos_trusted_devices.json"))
 }
 
 fn load_trusted_devices() -> Result<Vec<TrustedDevice>, Box<dyn std::error::Error>> {
