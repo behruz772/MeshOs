@@ -13,3 +13,45 @@ release/
 # Generated release artifacts
 build/iso/
 build/*OVMF_VARS*.fd
+
+# MeshOS local secrets
+meshos-release.keystore
+
+# Local backups and VM artifacts
+.backup/
+build/*.vdi
+build/*.png
+build/*.log
+build/*.fd
+build/final-iso/
+build/iso-boot-extract/
+build/kernel-packages/
+build/meshos-desktop-root/
+build/v0.1-x11-test-iso/
+build/*squashfs*
+build/*initramfs*
+
+# MeshOS local secrets
+meshos-release.keystore
+
+# Local backups and VM artifacts
+.backup/
+build/*.vdi
+build/*.png
+build/*.log
+build/*.fd
+build/final-iso/
+build/iso-boot-extract/
+build/kernel-packages/
+build/meshos-desktop-root/
+build/v0.1-x11-test-iso/
+build/*squashfs*
+build/*initramfs*
+
+# Android / Gradle generated files
+android/.gradle/
+android/**/build/
+android/local.properties
+
+# Android native build binaries
+android/app/src/main/jniLibs/

@@ -1,79 +1,99 @@
 #!/bin/sh
 
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
+mount -t devpts devpts /dev/pts 2>/dev/null || true
+mount -t tmpfs tmpfs /run
 
-echo "[MeshOS] Initializing persistent storage..."
+# The stable distribution kernel keeps the live-media filesystem and AHCI
+# drivers as modules.  They are bundled in this initramfs so load them before
+# looking for the CD-ROM and mounting the writable root.
+for module in libahci ahci isofs overlay ttm drm_ttm_helper vmwgfx; do
+    /bin/busybox insmod "/lib/modules/${module}.ko" || {
+        echo "[MeshOS] ERROR: unable to load ${module}"
+        exec /bin/sh
+    }
+done
 
-mkdir -p /var/lib/meshos/transfer
+mkdir -p /mnt/iso /mnt/rootfs /mnt/overlay /newroot
 
-if [ -b /dev/vda ]; then
-    if mount -t ext4 /dev/vda /var/lib/meshos 2>/tmp/meshos-storage-error.log; then
-        echo "[MeshOS] Persistent storage mounted: /dev/vda"
-    else
-        echo "[MeshOS] Persistent storage unavailable; using volatile storage."
-        cat /tmp/meshos-storage-error.log 2>/dev/null || true
-    fi
-else
-    echo "[MeshOS] Persistent disk not available; using volatile storage."
-fi
+echo "[MeshOS] Waiting for boot media..."
+i=0
+while [ "$i" -lt 30 ]; do
+    [ -b /dev/sr0 ] && break
+    i=$((i + 1))
+    sleep 1
+done
 
-echo
-echo "================================"
-echo "        MeshOS"
-echo "================================"
-echo "Kernel: $(uname -r)"
-echo "Userspace: MeshOS"
-echo
-
-hostname meshos
-
-meshos_sync() {
-    echo "[MeshOS] Syncing persistent storage..."
-    sync
-}
-
-meshos_poweroff() {
-    meshos_sync
-    echo "[MeshOS] Powering off..."
-    poweroff
-}
-
-meshos_reboot() {
-    meshos_sync
-    echo "[MeshOS] Rebooting..."
-    reboot
-}
-
-echo "[MeshOS] Initializing network..."
-
-ip link set lo up 2>/dev/null || true
-
-if ip link show eth0 >/dev/null 2>&1; then
-    ip link set eth0 up 2>/dev/null || true
-
-    echo "[MeshOS] Requesting DHCP lease..."
-
-    udhcpc -i eth0 -q -n \
-        -s /bin/udhcpc.script \
-        >/tmp/udhcpc.log 2>&1 || true
-else
-    echo "[MeshOS] No eth0 interface available."
-fi
-
-if /bin/busybox grep -qw "meshos.shell=1" /proc/cmdline 2>/dev/null; then
-    echo "[MeshOS] Interactive shell enabled."
+if [ ! -b /dev/sr0 ]; then
+    echo "[MeshOS] ERROR: /dev/sr0 not found"
     exec /bin/sh
 fi
 
-if [ -x /bin/meshos-daemon ]; then
-    echo "[MeshOS] Starting daemon..."
-    /bin/meshos-daemon &
+mount -t iso9660 -o ro /dev/sr0 /mnt/iso || exec /bin/sh
+
+if [ ! -f /mnt/iso/live/meshos-desktop.squashfs ]; then
+    echo "[MeshOS] ERROR: Desktop SquashFS not found"
+    exec /bin/sh
 fi
 
-echo "[MeshOS] System ready."
+echo "[MeshOS] Mounting Desktop SquashFS..."
+mount -t squashfs -o ro /mnt/iso/live/meshos-desktop.squashfs /mnt/rootfs || exec /bin/sh
 
-while true; do
-    sleep 60
-done
+echo "[MeshOS] Creating writable OverlayFS..."
+mount -t tmpfs tmpfs /mnt/overlay
+# The tmpfs mount above replaces the directory created during early setup,
+# so create OverlayFS's required sibling directories after mounting it.
+mkdir -p /mnt/overlay/upper /mnt/overlay/work
+mount -t overlay overlay -o lowerdir=/mnt/rootfs,upperdir=/mnt/overlay/upper,workdir=/mnt/overlay/work /newroot || exec /bin/sh
+
+# Make the graphical stack deterministic. SDDM otherwise auto-selects a
+# display backend, which is unreliable on the minimal live image.
+mkdir -p /newroot/etc/sddm.conf.d
+cat > /newroot/etc/sddm.conf.d/10-meshos-x11.conf <<'EOF'
+[General]
+DisplayServer=x11
+
+[Theme]
+Current=debian-breeze
+
+[X11]
+ServerPath=/usr/lib/xorg/Xorg
+ServerArguments=-nolisten tcp -logfile /var/log/Xorg.0.log
+EOF
+
+# Plymouth's boot daemon is not needed on the live image.  On the current
+# VirtualBox/kernel combination it can stall before the display manager is
+# reached, so mask it before systemd starts the graphical target.
+ln -sf /dev/null /newroot/etc/systemd/system/plymouth-start.service
+
+# The image already carries a generated linker cache.  Rebuilding it on every
+# live boot scans the whole SquashFS and delays the greeter substantially.
+ln -sf /dev/null /newroot/etc/systemd/system/ldconfig.service
+
+# The VirtualBox live target uses the proven X11 stack.  Hide the Plasma
+# Wayland session so SDDM cannot select a compositor that requires a DRM node
+# unavailable in this minimal image.
+/bin/busybox rm -f /newroot/usr/share/wayland-sessions/plasma.desktop
+
+# Keep early graphical failures visible on the serial console used by the
+# automated VM test.
+mkdir -p /newroot/etc/systemd/journald.conf.d
+cat > /newroot/etc/systemd/journald.conf.d/10-meshos-console.conf <<'EOF'
+[Journal]
+ForwardToConsole=yes
+TTYPath=/dev/ttyS0
+MaxLevelConsole=debug
+EOF
+
+mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run
+mount --move /proc /newroot/proc
+mount --move /sys /newroot/sys
+mount --move /dev /newroot/dev
+mount --move /run /newroot/run
+
+echo "[MeshOS] Writable root ready; starting desktop."
+exec /bin/busybox switch_root /newroot /sbin/init

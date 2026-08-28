@@ -120,3 +120,7 @@ mod channel_tests {
         assert!(channel::decrypt(&key, &encrypted).is_err());
     }
 }
+
+mod mobile;
+
+pub mod service;

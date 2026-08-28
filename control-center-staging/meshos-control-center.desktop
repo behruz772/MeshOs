@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=MeshOS Control Center
+Comment=Manage MeshOS devices, transfers, trust, and diagnostics
+Exec=/usr/local/bin/meshos-control-center
+Icon=preferences-system
+Categories=Settings;System;
+Terminal=false
